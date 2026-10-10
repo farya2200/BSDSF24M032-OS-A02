@@ -19,6 +19,13 @@
 void do_ls(const char *dir, int long_format, int horizontal);
 void print_long(const char *path, const char *name);
 
+int compare_names(const void *a, const void *b)
+{
+    const char *name1 = *(const char **)a;
+    const char *name2 = *(const char **)b;
+    return strcmp(name1, name2);
+}
+
 int main(int argc, char *argv[])
 {
     int opt;
@@ -108,6 +115,9 @@ void do_ls(const char *dir, int long_format, int horizontal)
 
     closedir(dp);
 
+    /* Sort filenames alphabetically. */
+    qsort(names, count, sizeof(*names), compare_names);
+
     if (long_format)
     {
         for (size_t i = 0; i < count; i++)
@@ -127,6 +137,7 @@ void do_ls(const char *dir, int long_format, int horizontal)
         for (size_t i = 0; i < count; i++)
         {
             size_t length = strlen(names[i]);
+
             if (length > max_length)
                 max_length = length;
         }
@@ -141,7 +152,6 @@ void do_ls(const char *dir, int long_format, int horizontal)
 
         if (horizontal)
         {
-            /* Horizontal: fill each row from left to right. */
             for (size_t i = 0; i < count; i++)
             {
                 printf("%-*s", (int)cell_width, names[i]);
@@ -152,7 +162,6 @@ void do_ls(const char *dir, int long_format, int horizontal)
         }
         else
         {
-            /* Default: fill down each column, then across. */
             for (size_t r = 0; r < rows; r++)
             {
                 for (size_t c = 0; c < columns; c++)
@@ -199,9 +208,11 @@ void print_long(const char *path, const char *name)
     if (info.st_mode & S_IRUSR) permissions[1] = 'r';
     if (info.st_mode & S_IWUSR) permissions[2] = 'w';
     if (info.st_mode & S_IXUSR) permissions[3] = 'x';
+
     if (info.st_mode & S_IRGRP) permissions[4] = 'r';
     if (info.st_mode & S_IWGRP) permissions[5] = 'w';
     if (info.st_mode & S_IXGRP) permissions[6] = 'x';
+
     if (info.st_mode & S_IROTH) permissions[7] = 'r';
     if (info.st_mode & S_IWOTH) permissions[8] = 'w';
     if (info.st_mode & S_IXOTH) permissions[9] = 'x';
