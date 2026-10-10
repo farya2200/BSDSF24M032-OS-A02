@@ -16,8 +16,17 @@
 #include <grp.h>
 #include <time.h>
 
+#define RESET   "\033[0m"
+#define BLUE    "\033[34m"
+#define GREEN   "\033[32m"
+#define RED     "\033[31m"
+#define MAGENTA "\033[35m"
+#define REVERSE "\033[7m"
+
 void do_ls(const char *dir, int long_format, int horizontal);
 void print_long(const char *path, const char *name);
+int compare_names(const void *a, const void *b);
+void print_colored(const char *path, const char *name);
 
 int compare_names(const void *a, const void *b)
 {
@@ -86,8 +95,7 @@ void do_ls(const char *dir, int long_format, int horizontal)
         if (count == capacity)
         {
             size_t new_capacity = capacity == 0 ? 16 : capacity * 2;
-            char **temp = realloc(names,
-                                  new_capacity * sizeof(*names));
+            char **temp = realloc(names, new_capacity * sizeof(*names));
 
             if (temp == NULL)
             {
@@ -115,7 +123,6 @@ void do_ls(const char *dir, int long_format, int horizontal)
 
     closedir(dp);
 
-    /* Sort filenames alphabetically. */
     qsort(names, count, sizeof(*names), compare_names);
 
     if (long_format)
@@ -137,7 +144,6 @@ void do_ls(const char *dir, int long_format, int horizontal)
         for (size_t i = 0; i < count; i++)
         {
             size_t length = strlen(names[i]);
-
             if (length > max_length)
                 max_length = length;
         }
@@ -154,7 +160,8 @@ void do_ls(const char *dir, int long_format, int horizontal)
         {
             for (size_t i = 0; i < count; i++)
             {
-                printf("%-*s", (int)cell_width, names[i]);
+                print_colored(dir, names[i]);
+                printf("%*s", (int)(cell_width - strlen(names[i]) - 1), "");
 
                 if ((i + 1) % columns == 0 || i + 1 == count)
                     putchar('\n');
@@ -169,7 +176,11 @@ void do_ls(const char *dir, int long_format, int horizontal)
                     size_t i = c * rows + r;
 
                     if (i < count)
-                        printf("%-*s", (int)cell_width, names[i]);
+                    {
+                        print_colored(dir, names[i]);
+                        printf("%*s",
+                               (int)(cell_width - strlen(names[i]) - 1), "");
+                    }
                 }
 
                 putchar('\n');
@@ -181,6 +192,44 @@ void do_ls(const char *dir, int long_format, int horizontal)
         free(names[i]);
 
     free(names);
+}
+
+void print_colored(const char *path, const char *name)
+{
+    char fullpath[4096];
+    struct stat info;
+    const char *color = RESET;
+
+    snprintf(fullpath, sizeof(fullpath), "%s/%s", path, name);
+
+    if (lstat(fullpath, &info) == -1)
+    {
+        printf("%s", name);
+        return;
+    }
+
+    if (S_ISDIR(info.st_mode))
+        color = BLUE;
+    else if (S_ISLNK(info.st_mode))
+        color = MAGENTA;
+    else if (S_ISCHR(info.st_mode) || S_ISBLK(info.st_mode) ||
+             S_ISFIFO(info.st_mode) || S_ISSOCK(info.st_mode))
+        color = REVERSE;
+    else if (info.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))
+        color = GREEN;
+    else
+    {
+        size_t len = strlen(name);
+
+        if ((len >= 4 && strcmp(name + len - 4, ".tar") == 0) ||
+            (len >= 7 && strcmp(name + len - 7, ".tar.gz") == 0) ||
+            (len >= 4 && strcmp(name + len - 4, ".tgz") == 0) ||
+            (len >= 4 && strcmp(name + len - 4, ".zip") == 0) ||
+            (len >= 3 && strcmp(name + len - 3, ".gz") == 0))
+            color = RED;
+    }
+
+    printf("%s%s%s", color, name, RESET);
 }
 
 void print_long(const char *path, const char *name)
@@ -208,11 +257,9 @@ void print_long(const char *path, const char *name)
     if (info.st_mode & S_IRUSR) permissions[1] = 'r';
     if (info.st_mode & S_IWUSR) permissions[2] = 'w';
     if (info.st_mode & S_IXUSR) permissions[3] = 'x';
-
     if (info.st_mode & S_IRGRP) permissions[4] = 'r';
     if (info.st_mode & S_IWGRP) permissions[5] = 'w';
     if (info.st_mode & S_IXGRP) permissions[6] = 'x';
-
     if (info.st_mode & S_IROTH) permissions[7] = 'r';
     if (info.st_mode & S_IWOTH) permissions[8] = 'w';
     if (info.st_mode & S_IXOTH) permissions[9] = 'x';
@@ -228,12 +275,12 @@ void print_long(const char *path, const char *name)
     else
         snprintf(timebuf, sizeof(timebuf), "unknown time");
 
-    printf("%s %lu %s %s %8ld %s %s\n",
-           permissions,
+    printf("%s %lu %s %s %8ld %s ", permissions,
            (unsigned long)info.st_nlink,
            owner ? owner->pw_name : "?",
            group ? group->gr_name : "?",
-           (long)info.st_size,
-           timebuf,
-           name);
+           (long)info.st_size, timebuf);
+
+    print_colored(path, name);
+    putchar('\n');
 }
