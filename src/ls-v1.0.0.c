@@ -15,6 +15,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <time.h>
+#include <limits.h>
 
 #define RESET   "\033[0m"
 #define BLUE    "\033[34m"
@@ -23,10 +24,11 @@
 #define MAGENTA "\033[35m"
 #define REVERSE "\033[7m"
 
-void do_ls(const char *dir, int long_format, int horizontal);
+void do_ls(const char *dir, int long_format, int horizontal,
+           int recursive, int show_header);
 void print_long(const char *path, const char *name);
-int compare_names(const void *a, const void *b);
 void print_colored(const char *path, const char *name);
+int compare_names(const void *a, const void *b);
 
 int compare_names(const void *a, const void *b)
 {
@@ -40,37 +42,40 @@ int main(int argc, char *argv[])
     int opt;
     int long_format = 0;
     int horizontal = 0;
+    int recursive = 0;
 
-    while ((opt = getopt(argc, argv, "lx")) != -1)
+    while ((opt = getopt(argc, argv, "lxR")) != -1)
     {
         if (opt == 'l')
             long_format = 1;
         else if (opt == 'x')
             horizontal = 1;
+        else if (opt == 'R')
+            recursive = 1;
         else
         {
-            fprintf(stderr, "Usage: %s [-l] [-x] [directory ...]\n",
+            fprintf(stderr, "Usage: %s [-l] [-x] [-R] [directory ...]\n",
                     argv[0]);
             return 1;
         }
     }
 
     if (optind == argc)
-        do_ls(".", long_format, horizontal);
+        do_ls(".", long_format, horizontal, recursive, recursive);
     else
     {
         for (int i = optind; i < argc; i++)
         {
-            printf("Directory listing of %s:\n", argv[i]);
-            do_ls(argv[i], long_format, horizontal);
-            puts("");
+            do_ls(argv[i], long_format, horizontal, recursive,
+                  recursive || argc - optind > 1);
         }
     }
 
     return 0;
 }
 
-void do_ls(const char *dir, int long_format, int horizontal)
+void do_ls(const char *dir, int long_format, int horizontal,
+           int recursive, int show_header)
 {
     DIR *dp = opendir(dir);
 
@@ -79,6 +84,9 @@ void do_ls(const char *dir, int long_format, int horizontal)
         perror(dir);
         return;
     }
+
+    if (show_header)
+        printf("%s:\n", dir);
 
     struct dirent *entry;
     char **names = NULL;
@@ -161,7 +169,8 @@ void do_ls(const char *dir, int long_format, int horizontal)
             for (size_t i = 0; i < count; i++)
             {
                 print_colored(dir, names[i]);
-                printf("%*s", (int)(cell_width - strlen(names[i]) - 1), "");
+                printf("%*s",
+                       (int)(cell_width - strlen(names[i]) - 1), "");
 
                 if ((i + 1) % columns == 0 || i + 1 == count)
                     putchar('\n');
@@ -188,6 +197,30 @@ void do_ls(const char *dir, int long_format, int horizontal)
         }
     }
 
+    if (recursive)
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            char fullpath[PATH_MAX];
+            struct stat info;
+
+            int written = snprintf(fullpath, sizeof(fullpath),
+                                   "%s/%s", dir, names[i]);
+
+            if (written < 0 || (size_t)written >= sizeof(fullpath))
+            {
+                fprintf(stderr, "Path too long: %s/%s\n", dir, names[i]);
+                continue;
+            }
+
+            if (lstat(fullpath, &info) == 0 && S_ISDIR(info.st_mode))
+            {
+                printf("\n");
+                do_ls(fullpath, long_format, horizontal, recursive, 1);
+            }
+        }
+    }
+
     for (size_t i = 0; i < count; i++)
         free(names[i]);
 
@@ -196,13 +229,14 @@ void do_ls(const char *dir, int long_format, int horizontal)
 
 void print_colored(const char *path, const char *name)
 {
-    char fullpath[4096];
+    char fullpath[PATH_MAX];
     struct stat info;
     const char *color = RESET;
 
-    snprintf(fullpath, sizeof(fullpath), "%s/%s", path, name);
+    int written = snprintf(fullpath, sizeof(fullpath), "%s/%s", path, name);
 
-    if (lstat(fullpath, &info) == -1)
+    if (written < 0 || (size_t)written >= sizeof(fullpath) ||
+        lstat(fullpath, &info) == -1)
     {
         printf("%s", name);
         return;
@@ -234,14 +268,15 @@ void print_colored(const char *path, const char *name)
 
 void print_long(const char *path, const char *name)
 {
-    char fullpath[4096];
+    char fullpath[PATH_MAX];
     struct stat info;
 
-    snprintf(fullpath, sizeof(fullpath), "%s/%s", path, name);
+    int written = snprintf(fullpath, sizeof(fullpath), "%s/%s", path, name);
 
-    if (lstat(fullpath, &info) == -1)
+    if (written < 0 || (size_t)written >= sizeof(fullpath) ||
+        lstat(fullpath, &info) == -1)
     {
-        perror(fullpath);
+        perror(name);
         return;
     }
 
@@ -275,11 +310,13 @@ void print_long(const char *path, const char *name)
     else
         snprintf(timebuf, sizeof(timebuf), "unknown time");
 
-    printf("%s %lu %s %s %8ld %s ", permissions,
+    printf("%s %lu %s %s %8ld %s ",
+           permissions,
            (unsigned long)info.st_nlink,
            owner ? owner->pw_name : "?",
            group ? group->gr_name : "?",
-           (long)info.st_size, timebuf);
+           (long)info.st_size,
+           timebuf);
 
     print_colored(path, name);
     putchar('\n');
