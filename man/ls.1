@@ -1,0 +1,64 @@
+.TH LS 1 "October 2026" "OS Assignment 02" "User Commands"
+.SH NAME
+ls \- list directory contents
+.SH SYNOPSIS
+.B ./bin/ls
+.RB [ \-l ]
+.RB [ \-x ]
+.RB [ \-R ]
+.RI [ directory ...]
+.SH DESCRIPTION
+The
+.B ls
+program lists the contents of directories. It supports basic listing, long-format output, horizontal listing, alphabetical sorting, colorized output, and recursive directory listing.
+.PP
+If no directory is specified, the program lists the contents of the current directory.
+.SH OPTIONS
+.TP
+.B \-l
+Display files in long format, including file permissions, number of links, owner, group, file size, modification time, and filename.
+.TP
+.B \-x
+Display filenames horizontally, filling each row before moving to the next row.
+.TP
+.B \-R
+List directories recursively, including the contents of their subdirectories.
+.SH FEATURES
+.TP
+.B Alphabetical sorting
+Filenames are sorted alphabetically.
+.TP
+.B Colorized output
+Files and directories are displayed in colors according to their types, where supported by the terminal.
+.TP
+.B Directory handling
+The program reads directory entries and retrieves file metadata.
+.SH EXAMPLES
+.TP
+.B ./bin/ls
+List the current directory.
+.TP
+.B ./bin/ls -l
+Display a detailed listing.
+.TP
+.B ./bin/ls -x
+Display filenames horizontally.
+.TP
+.B ./bin/ls -R
+List directories recursively.
+.TP
+.B ./bin/ls -lR
+Display detailed listings recursively.
+.SH IMPLEMENTATION
+This program is implemented in C and uses directory operations, file metadata functions, dynamic memory allocation, command-line option parsing, sorting, terminal-width detection, ANSI color codes, and recursion.
+.SH LIMITATIONS
+This is a simplified implementation of the Unix
+.B ls
+command and does not support every option available in the standard system utility.
+.SH AUTHOR
+Faria Azhar
+.SH SEE ALSO
+.BR ls (1),
+.BR stat (2),
+.BR opendir (3),
+.BR readdir (3)
